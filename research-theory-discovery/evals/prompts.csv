@@ -1,0 +1,16 @@
+id,should_trigger,prompt
+t01,true,Use the $research-theory-discovery skill. I have an unclear idea for replacing attention; reconstruct the problem before evaluating my mechanism.
+t02,true,"My theory predicts a long-context advantage, but validation CE is unchanged. Build a theory-experiment conflict tree."
+t03,true,"From these constraints, derive what missing structure must exist and give pre-registered predictions."
+t04,true,"I want a first-principles model architecture, not a combination of familiar modules. Explore competing problem formulations."
+t05,true,Here are three anomalous experiments. Find the smallest theory that explains them and a decisive next test.
+t06,true,Quarantine my proposed explanation and independently generate alternative hypotheses before comparing them.
+t07,true,"Use novelty-style hypothesis search: generate orthogonal explanations for why an active-memory model improves CE, then identify which explanations share the same underlying mechanism."
+t08,true,"A model can serialize architectures and replay them later. Analyze whether this is discovery, reachability, or serialization mistaken for generation."
+t09,true,"A new model beats the baseline, but it has more parameters, more passes, and a custom fused kernel. Build a false-win checklist before interpreting the result."
+t10,true,"A mathematically equivalent online LoRA update performs worse after implementation. Diagnose the theory package instead of declaring the core idea false."
+n01,false,Fix this PyTorch tensor shape mismatch.
+n02,false,Implement the following exact API endpoint specification.
+n03,false,Summarize this paper in five paragraphs.
+n04,false,Rename these variables and format the code.
+n05,false,Write unit tests for this existing function.

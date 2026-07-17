@@ -1,0 +1,8 @@
+# Hooks and scripts need LF line endings everywhere, or a shebang line becomes
+# "#!/bin/sh\r" on a machine that checks them out with CRLF and they fail to
+# execute on Linux/macOS with "bad interpreter" errors.
+harness/hooks/pre-commit text eol=lf
+harness/hooks/commit-msg text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.js text eol=lf

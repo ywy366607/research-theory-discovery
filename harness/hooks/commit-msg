@@ -1,0 +1,52 @@
+#!/bin/sh
+# research-theory-discovery harness -- Layer C git commit-msg hook.
+#
+# If this commit newly prunes/supersedes/marks-noisy a research_tree.json
+# node (status transitions into pruned|noisy|superseded), the commit
+# message must contain "Pruning:" and "Recovery:" lines so the reason and
+# rollback path are recorded next to the commit, per the tree-node
+# pruning-record contract in references/output-schema.md.
+
+set -e
+
+PY=""
+for candidate in python3 python py; do
+  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "" >/dev/null 2>&1; then
+    PY="$candidate"
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  # Pruning-message check is best-effort; don't block commits over a missing interpreter.
+  exit 0
+fi
+
+MSG_FILE="$1"
+REPO_ROOT=$(git rev-parse --show-toplevel)
+TREE_FILE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)research_tree\.json$' | head -n1 || true)
+
+if [ -z "$TREE_FILE" ]; then
+  exit 0
+fi
+
+DETECTOR="$REPO_ROOT/.research-harness/detect_new_pruning.py"
+if [ ! -f "$DETECTOR" ]; then
+  # Harness not fully installed -- don't block on a missing optional check.
+  exit 0
+fi
+
+NEW_PRUNES=$("$PY" "$DETECTOR" "$TREE_FILE" 2>/dev/null || true)
+
+if [ -n "$NEW_PRUNES" ]; then
+  if ! grep -q "^Pruning:" "$MSG_FILE" || ! grep -q "^Recovery:" "$MSG_FILE"; then
+    echo "" >&2
+    echo "BLOCKED: this commit newly prunes/supersedes/noisy-marks nodes: $NEW_PRUNES" >&2
+    echo "Commit message must include 'Pruning:' and 'Recovery:' lines, e.g.:" >&2
+    echo "" >&2
+    echo "  Pruning: N014 invalidated -- tokenizer assumption was wrong" >&2
+    echo "  Recovery: git show <this-commit>^:research_tree.json to restore" >&2
+    exit 1
+  fi
+fi
+
+exit 0

@@ -1,0 +1,57 @@
+#!/bin/sh
+# research-theory-discovery harness -- Layer C git pre-commit hook.
+#
+# Blocks the commit if a staged research_tree.json fails schema/invariant
+# validation. Installed by scripts/install_harness.py into .git/hooks/.
+#
+# Looks for a tracked file named research_tree.json anywhere in the repo
+# (first match). Adjust TREE_FILE below if your project uses a different
+# path or name.
+
+set -e
+
+# Pick a Python interpreter that actually runs. On Windows, `python3` is
+# often a Microsoft Store alias stub that exits nonzero without running
+# anything, so probe rather than assume.
+PY=""
+for candidate in python3 python py; do
+  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "" >/dev/null 2>&1; then
+    PY="$candidate"
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  echo "research-theory-discovery harness: no working python interpreter found on PATH" >&2
+  exit 1
+fi
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+TREE_FILE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)research_tree\.json$' | head -n1 || true)
+
+if [ -z "$TREE_FILE" ]; then
+  # research_tree.json not part of this commit -- nothing to check.
+  exit 0
+fi
+
+VALIDATOR="$REPO_ROOT/.research-harness/validate_tree.py"
+if [ ! -f "$VALIDATOR" ]; then
+  echo "research-theory-discovery harness: validate_tree.py not found at $VALIDATOR" >&2
+  echo "  (expected it to be installed by scripts/install_harness.py)" >&2
+  exit 1
+fi
+
+# Validate the staged content, not the working-tree content, so partially
+# edited-but-unstaged trees don't block or falsely pass the commit.
+TMP=$(mktemp)
+git show ":$TREE_FILE" > "$TMP"
+
+if ! "$PY" "$VALIDATOR" "$TMP" --strict; then
+  echo "" >&2
+  echo "BLOCKED: staged $TREE_FILE fails research-tree validation (see above)." >&2
+  echo "Fix the tree or amend the node status before committing." >&2
+  rm -f "$TMP"
+  exit 1
+fi
+
+rm -f "$TMP"
+exit 0

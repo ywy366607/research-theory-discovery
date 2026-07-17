@@ -1,0 +1,7 @@
+interface:
+  display_name: "研究理论发现"
+  short_description: "探索假设、推导预测，并诊断理论-实验冲突。"
+  default_prompt: "使用这个 skill 独立重构研究问题，生成竞争假设，推导可证伪预测，并设计决定性实验。"
+
+policy:
+  allow_implicit_invocation: false

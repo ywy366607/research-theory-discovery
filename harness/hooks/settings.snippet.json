@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {"type": "command", "command": "python .research-harness/hooks/validate_tree_hook.py", "timeout": 15}
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {"type": "command", "command": "python .research-harness/hooks/check_tree_updated.py", "timeout": 15}
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "python .research-harness/hooks/block_unreviewed_stop.py", "timeout": 15}
+        ]
+      }
+    ]
+  }
+}

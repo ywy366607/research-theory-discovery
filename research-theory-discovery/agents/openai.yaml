@@ -1,0 +1,7 @@
+interface:
+  display_name: "Research Theory Discovery"
+  short_description: "Search novel hypotheses, derive self-binding predictions, and diagnose theory-experiment conflicts."
+  default_prompt: "Use this skill to reconstruct the research problem independently, search for orthogonal competing hypotheses, derive falsifiable predictions, and design decisive experiments."
+
+policy:
+  allow_implicit_invocation: false
