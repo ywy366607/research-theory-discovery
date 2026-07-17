@@ -110,6 +110,9 @@ Two real bugs were found and fixed by this testing, not by inspection:
 
 ## Installing into a target research repo
 
+See [`../GETTING-STARTED.md`](../GETTING-STARTED.md) for a full step-by-step walkthrough (all three
+layers, plus commands to verify the gate actually blocks a bad commit). Short version:
+
 ```bash
 python scripts/install_harness.py /path/to/target/repo
 ```

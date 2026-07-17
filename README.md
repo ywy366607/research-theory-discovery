@@ -11,8 +11,12 @@ enforcement harness so the protocol is checked, not just described.
   deterministic multi-agent `Workflow`); language-neutral, used by both versions above
 
 Start with whichever language directory's `README.md` matches you; both link into `harness/` for
-the enforcement layer. `harness/README.md` also documents what was actually tested (not just
-designed) and its known limitations.
+the enforcement layer. `harness/README.md` documents the harness design and what was actually
+tested (not just designed) and its known limitations.
+
+**New to this repo? Read [`GETTING-STARTED.md`](GETTING-STARTED.md)** -- it's a step-by-step
+walkthrough of activating all three harness layers in a real research project, including the exact
+commands to verify the git hook actually blocks a bad commit.
 
 ## Why this exists
 
