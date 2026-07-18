@@ -23,7 +23,7 @@ fi
 
 MSG_FILE="$1"
 REPO_ROOT=$(git rev-parse --show-toplevel)
-TREE_FILE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)research_tree\.json$' | head -n1 || true)
+TREE_FILE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)[^/]*research_tree[^/]*\.json$' | grep -Ev '\.schema\.json$' | head -n1 || true)
 
 if [ -z "$TREE_FILE" ]; then
   exit 0

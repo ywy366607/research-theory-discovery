@@ -20,12 +20,15 @@ Usage:
   python install_harness.py /path/to/target/repo
 """
 import argparse
+import re
 import shutil
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
 HARNESS_ROOT = Path(__file__).resolve().parent.parent
+TREE_NAME_PATTERN = re.compile(r"research_tree(?!\.schema\.json$).*\.json$", re.IGNORECASE)
 
 HARNESS_FILES = [
     "scripts/validate_tree.py",
@@ -111,6 +114,41 @@ def install_git_hook(target, hook_name):
     return True
 
 
+def find_existing_tree_files(target):
+    r = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=target, capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        return [p for p in target.rglob("*.json") if TREE_NAME_PATTERN.search(p.name)]
+    return [target / line for line in r.stdout.splitlines() if TREE_NAME_PATTERN.search(Path(line).name)]
+
+
+def check_existing_trees(target, validator_path):
+    """The pre-commit/Stop hooks only fire the moment someone next commits or
+    ends a turn -- if a non-conformant tree already exists, that first
+    encounter is a surprise mid-task block with no warning it was coming.
+    Check now, at install time, and say so up front instead."""
+    found = find_existing_tree_files(target)
+    if not found:
+        return
+    print(f"\n--- Pre-existing research-tree file(s) found ({len(found)}) ---")
+    for path in found:
+        rel = path.relative_to(target) if path.is_absolute() else path
+        result = subprocess.run(
+            [sys.executable, str(validator_path), str(path), "--strict"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            print(f"  OK      {rel}")
+        else:
+            print(f"  WARNING {rel} does not currently pass strict validation.")
+            print(f"          The pre-commit/Stop hooks just installed WILL BLOCK the next")
+            print(f"          commit or turn-end that touches this file until it's fixed.")
+            print(f"          Run: python {validator_path.relative_to(target) if validator_path.is_absolute() else validator_path} \"{rel}\" --strict")
+            print(f"          to see the exact errors before you hit this mid-task.")
+
+
 def print_next_steps(target):
     print("\n--- Layer B (Claude Code hooks) ---")
     print("Hook scripts installed to .research-harness/hooks/. Registration is not")
@@ -141,10 +179,11 @@ def main():
         sys.exit(2)
 
     print(f"Installing research-theory-discovery harness (Layer C + B hook scripts) into {target}")
-    install_harness_dir(target)
+    dest_dir = install_harness_dir(target)
     install_claude_hooks(target)
     for hook in GIT_HOOKS:
         install_git_hook(target, hook)
+    check_existing_trees(target, dest_dir / "validate_tree.py")
     print_next_steps(target)
 
 

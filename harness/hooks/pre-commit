@@ -1,12 +1,13 @@
 #!/bin/sh
 # research-theory-discovery harness -- Layer C git pre-commit hook.
 #
-# Blocks the commit if a staged research_tree.json fails schema/invariant
+# Blocks the commit if a staged research-tree file fails schema/invariant
 # validation. Installed by scripts/install_harness.py into .git/hooks/.
 #
-# Looks for a tracked file named research_tree.json anywhere in the repo
-# (first match). Adjust TREE_FILE below if your project uses a different
-# path or name.
+# Looks for a tracked file whose basename contains "research_tree" and ends
+# in .json anywhere in the repo (first match) -- e.g. both research_tree.json
+# and <topic>_research_tree_<date>.json match, since real projects name
+# trees descriptively rather than using the literal template name.
 
 set -e
 
@@ -26,7 +27,7 @@ if [ -z "$PY" ]; then
 fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-TREE_FILE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)research_tree\.json$' | head -n1 || true)
+TREE_FILE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)[^/]*research_tree[^/]*\.json$' | grep -Ev '\.schema\.json$' | head -n1 || true)
 
 if [ -z "$TREE_FILE" ]; then
   # research_tree.json not part of this commit -- nothing to check.

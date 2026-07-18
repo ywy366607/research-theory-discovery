@@ -3,8 +3,10 @@
 
 Fires after every Edit/Write. If the touched file looks like a research
 conclusion/report artifact (filename matches report|conclusion|findings|
-results|summary) and the repo has a research_tree.json that shows no
-uncommitted changes, nags the model to update the tree before moving on.
+results|summary) and the repo has a research-tree file (basename containing
+"research_tree", e.g. research_tree.json or <topic>_research_tree_<date>.json)
+that shows no uncommitted changes, nags the model to update the tree before
+moving on.
 
 This is advisory, not a hard block: PostToolUse cannot undo the write that
 already happened. Its value is interrupting the model's turn with an error
@@ -22,14 +24,28 @@ import sys
 from pathlib import Path
 
 CONCLUSION_PATTERN = re.compile(r"(report|conclusion|finding|result|summary)", re.IGNORECASE)
-TREE_BASENAME = "research_tree.json"
-TREE_SEARCH_DIRS = [".", "research"]
+TREE_NAME_PATTERN = re.compile(r"research_tree(?!\.schema\.json$).*\.json$", re.IGNORECASE)
+
+
+def is_tree_file(path) -> bool:
+    return bool(TREE_NAME_PATTERN.search(Path(path).name))
 
 
 def find_tree_file(cwd):
-    for sub in TREE_SEARCH_DIRS:
-        candidate = Path(cwd) / sub / TREE_BASENAME
-        if candidate.exists():
+    """Search the repo (git-tracked + untracked-but-not-ignored files) for
+    the first file whose basename looks like a research tree. Falls back to
+    a shallow glob if git isn't available."""
+    r = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=cwd, capture_output=True, text=True,
+    )
+    if r.returncode == 0:
+        for line in r.stdout.splitlines():
+            if is_tree_file(line):
+                return Path(cwd) / line
+        return None
+    for candidate in Path(cwd).rglob("*.json"):
+        if is_tree_file(candidate):
             return candidate
     return None
 
@@ -55,7 +71,7 @@ def main():
         sys.exit(0)
 
     base = Path(file_path).name
-    if base == TREE_BASENAME:
+    if is_tree_file(base):
         sys.exit(0)  # the tree edit itself -- validate_tree_hook.py covers this
     if not CONCLUSION_PATTERN.search(base):
         sys.exit(0)  # doesn't look like a conclusion artifact

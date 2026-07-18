@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Claude Code PostToolUse hook (Layer B).
 
-Fires after every Edit/Write. If the touched file is research_tree.json,
-re-validates it immediately and reports failures back to the model via
-exit code 2. PostToolUse cannot undo the edit that already happened, but
-the nonzero exit surfaces the validator's error text to Claude as tool
-feedback, which in practice makes it fix the tree in the same turn instead
-of drifting away with an invalid tree.
+Fires after every Edit/Write. If the touched file looks like a research
+tree (basename contains "research_tree" and ends in .json -- matches both
+the literal research_tree.json and descriptive names like
+<topic>_research_tree_<date>.json), re-validates it immediately and reports
+failures back to the model via exit code 2. PostToolUse cannot undo the edit
+that already happened, but the nonzero exit surfaces the validator's error
+text to Claude as tool feedback, which in practice makes it fix the tree in
+the same turn instead of drifting away with an invalid tree.
 
 Reads the PostToolUse payload from stdin:
   {"cwd": "...", "tool_name": "Edit", "tool_input": {"file_path": "..."}, ...}
@@ -15,9 +17,12 @@ Expects the target repo to have been set up with install_harness.py, which
 places validate_tree.py at <repo_root>/.research-harness/validate_tree.py.
 """
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+TREE_NAME_PATTERN = re.compile(r"research_tree(?!\.schema\.json$).*\.json$", re.IGNORECASE)
 
 
 def find_repo_root(cwd):
@@ -39,7 +44,7 @@ def main():
         sys.exit(0)
 
     file_path = (payload.get("tool_input") or {}).get("file_path", "")
-    if not file_path or Path(file_path).name != "research_tree.json":
+    if not file_path or not TREE_NAME_PATTERN.search(Path(file_path).name):
         sys.exit(0)
 
     cwd = payload.get("cwd") or "."

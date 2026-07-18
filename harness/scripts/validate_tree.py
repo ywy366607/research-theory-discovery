@@ -18,7 +18,12 @@ import json
 import re
 import sys
 
-NODE_ID_RE = re.compile(r"^N[0-9]{3,}$")
+# Any short, stable, unique identifier works (N001, L0, R-14, ...) -- the
+# earlier ^N[0-9]{3,}$ pattern was copied from one example in the docs and
+# rejected every other reasonable convention, including L0/L1/... trees that
+# real usage of this harness has already produced. All that actually matters
+# is: starts with a letter, no whitespace/slashes, reasonably short.
+NODE_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,31}$")
 PREDICTION_ID_RE = re.compile(r"^P-[0-9]{8}-[0-9]{2}$")
 
 STATUS_VALUES = {
@@ -90,7 +95,8 @@ def validate(tree, report):
 
         if node_id is not None:
             if not NODE_ID_RE.match(str(node_id)):
-                report.error(label, f"id '{node_id}' does not match ^N[0-9]{{3,}}$")
+                report.error(label, f"id '{node_id}' does not match {NODE_ID_RE.pattern} "
+                                     f"(must start with a letter; letters/digits/_/./- only)")
             if node_id in seen_ids:
                 report.error(label, f"duplicate node id '{node_id}' (also at nodes[{seen_ids[node_id]}])")
             else:
