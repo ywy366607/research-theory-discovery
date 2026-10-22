@@ -1,22 +1,27 @@
 export const meta = {
   name: 'research-cycle',
-  description: 'Deterministic research-theory-discovery pipeline: hypothesize -> necessity -> pre-register predictions (explore stage), or audit -> independent review -> tree node (confirm stage)',
+  description: 'Research pipeline: generate feasible candidates (explore), review a decision experiment (plan), or audit evidence and review a conclusion (confirm)',
   phases: [
     { title: 'Hypothesize' },
     { title: 'Necessity' },
     { title: 'Predict' },
+    { title: 'Plan' },
     { title: 'Audit' },
     { title: 'Review' },
   ],
 }
 
 // This script encodes the research-theory-discovery protocol as control flow
-// instead of as instructions a model can choose to skip. It has two entry
+// instead of as instructions a model can choose to skip. It has three entry
 // stages, kept structurally separate so a prediction can never be generated
 // with knowledge of the result it is supposed to predict:
 //
 //   args.stage === 'explore': problem -> hypotheses -> necessity -> pre-registered
 //     predictions. No experiment result is accepted as input at this stage.
+//
+//   args.stage === 'plan': selected candidate -> independent experiment review
+//     -> deterministic decision-contract checks. Registration approval is not
+//     execution authorization. This workflow never launches an experiment.
 //
 //   args.stage === 'confirm': a claim + its evidence + its earlier prediction
 //     -> false-win audit -> independent review -> a research_tree.json node
@@ -45,7 +50,12 @@ const ROLE_HYPOTHESIS_GENERATOR =
   'underlying-structure level (state variables, causal direction, geometry, time scale, ' +
   'optimization dynamics, information-flow path, measurement target, representation/retrieval/' +
   'compression/control role) -- not paraphrases of the same mechanism. Do not evaluate which ' +
-  'hypothesis is correct; that happens in later pipeline stages.'
+  'hypothesis is correct; that happens in later pipeline stages. Fix the user objective and ' +
+  'strongest reproducible baseline before choosing proxies. For architecture search include a ' +
+  'candidate that opens a new feasible space (state, causal path, learning object, or timing), ' +
+  'or explain why the existing space already represents the target. Give each candidate a ' +
+  'core change and constructive feasibility basis. User intuition is a discovery cue; construct ' +
+  'its strongest testable version and compare fairly.'
 
 const ROLE_NECESSITY_AUDITOR =
   'ROLE: necessity-auditor. Classify a hypothesis as possible, useful, or necessary. possible = ' +
@@ -53,20 +63,40 @@ const ROLE_NECESSITY_AUDITOR =
   'required. necessary = without it, the stated facts/formulas/experimental setup cannot ' +
   'coexist. Never assign necessary without an explicit derivation showing what breaks if the ' +
   'hypothesis is removed; if you cannot produce that derivation, classify as possible or useful ' +
-  'instead, even if the hypothesis seems important.'
+  'instead, even if the hypothesis seems important. Check whether information reaches the ' +
+  'decision and supervision can change the computation. A missing path calls for a minimal ' +
+  'structural change; reachability justifies trying, not a claim of capability. Bounded ' +
+  'exploratory implementation can proceed from an explicit design intuition without a full theorem.'
 
 const ROLE_PREDICTOR =
   'ROLE: predictor. Pre-register a falsifiable prediction for one hypothesis BEFORE any ' +
-  'experiment result exists. If any result-shaped content appears in your input, treat it as ' +
-  'contamination and flag it rather than using it. A strong prediction is made before the ' +
+  'decisive experiment result exists. Prior observations may motivate a new prediction; if the ' +
+  'result of the proposed decisive test appears, flag contamination. A strong prediction is made before the ' +
   'decisive result, specific enough to be wrong, different from the strongest alternative ' +
   'hypothesis, robust to reasonable implementation choices, tied to a derivation. State: the ' +
-  'premises that must hold, which metric(s) must improve and by how much, where the advantage ' +
+  'premises that must hold, which target metric(s) must improve, where the advantage ' +
   'must weaken/disappear/reverse (the falsifying observation), what result would show the claimed ' +
   'mechanism was not implemented even if the headline metric improved, and where conflict should ' +
   'be localized in the theory package if the prediction fails. If no prediction can distinguish ' +
   'this hypothesis from competitors, say so and mark it a design intuition rather than manufacture ' +
-  'a prediction to fill the schema.'
+  'a prediction to fill the schema. Numerical effect sizes require derivation or independent ' +
+  'prior evidence; otherwise mark magnitude unknown and define a bounded exploratory test. ' +
+  'Distinguish user capability objectives from mechanism proxies. State gain, no-gain, and ' +
+  'ambiguous outcomes and the different decisions they support.'
+
+const ROLE_EXPERIMENT_PLANNER =
+  'ROLE: experiment-planner. Independently review the selected hypothesis, prediction, and proposed ' +
+  'experiment. Return a compact decision contract, not a new checklist of measurements. Preserve ' +
+  'the strongest reproducible baseline and user constraints. Identify one core change; explain ' +
+  'inseparable coupled changes. Separate target performance from mechanism proxies, discovery from ' +
+  'attribution, and feasibility from success. A design intuition may justify bounded exploration ' +
+  'with unknown effect size. Capability claims require sufficient joint training, real data, ' +
+  'deployment-matched independent evaluation, learning curves, and stopping evidence; short or ' +
+  'frozen tests support local claims only. Define gain/no_gain/ambiguous criteria and actions. ' +
+  'All actions identical implies a redundant decision experiment; necessary numerical/interface/' +
+  'safety acceptance is allowed with a reason. Unreachable candidates need redesign, unresolved ' +
+  'feasibility permits only a bounded exploratory/acceptance check. Approve registration only; ' +
+  'execution permissions remain the caller responsibility.'
 
 const ROLE_FALSE_VICTORY_AUDITOR =
   'ROLE: false-victory-auditor. Run the full false-win checklist against a claimed result: Extra ' +
@@ -88,7 +118,10 @@ const ROLE_INDEPENDENT_REVIEWER =
   'is the claimed theory-strength level (design intuition / mechanism hypothesis / restricted ' +
   'theory / strong theory) justified by what was shown. Default to rejected unless the case is ' +
   'genuinely solid. A rejection must say exactly which check failed and what would need to change. ' +
-  'Do not be a rubber stamp.'
+  'Do not be a rubber stamp. Judge progress against the user objective, not audit completeness. ' +
+  'Local gradient correctness, causality, rank, energy, or differentiation alone establishes ' +
+  'only its local claim; capability requires sufficient joint training and target evaluation. ' +
+  'Check whether teacher-assisted training gains survive the actual inference information path.'
 
 const HYPOTHESES_SCHEMA = {
   type: 'object',
@@ -105,6 +138,9 @@ const HYPOTHESES_SCHEMA = {
           claim: { type: 'string' },
           family: { type: 'string' },
           orthogonal_axis: { type: 'string' },
+          core_change: { type: 'string' },
+          feasible_space: { type: 'string' },
+          feasibility_basis: { type: 'string' },
         },
       },
     },
@@ -130,6 +166,8 @@ const PREDICTION_SCHEMA = {
     expected_observation: { type: 'string' },
     falsifying_observation: { type: 'string' },
     conflict_localization: { type: 'string' },
+    claim_scope: { type: 'string', enum: ['exploration', 'numerical', 'mechanism', 'capability'] },
+    effect_size_basis: { type: 'string' },
   },
 }
 
@@ -163,6 +201,87 @@ const REVIEW_SCHEMA = {
   },
 }
 
+const PLAN_SCHEMA = {
+  type: 'object',
+  required: ['status', 'objective', 'primary_metric', 'metric_role', 'baseline', 'core_change',
+    'claim_scope', 'feasibility', 'purpose', 'budget_and_evaluation', 'stopping_condition',
+    'decision_branches', 'concerns'],
+  properties: {
+    status: { type: 'string', enum: ['approved', 'rejected', 'redesign'] },
+    objective: { type: 'string' },
+    primary_metric: { type: 'string' },
+    metric_role: { type: 'string', enum: ['target', 'proxy'] },
+    proxy_bridge: { type: 'string' },
+    baseline: { type: 'string' },
+    core_change: { type: 'string' },
+    coupled_change_reason: { type: 'string' },
+    claim_scope: { type: 'string', enum: ['exploration', 'numerical', 'mechanism', 'capability'] },
+    feasibility: {
+      type: 'object', required: ['status', 'basis'],
+      properties: {
+        status: { type: 'string', enum: ['reachable', 'unresolved', 'unreachable'] },
+        basis: { type: 'string' },
+      },
+    },
+    purpose: { type: 'string', enum: ['discovery', 'attribution', 'necessary_acceptance'] },
+    acceptance_necessity: { type: 'string' },
+    budget_and_evaluation: { type: 'string' },
+    stopping_condition: { type: 'string' },
+    decision_branches: {
+      type: 'object', required: ['gain', 'no_gain', 'ambiguous'],
+      properties: Object.fromEntries(['gain', 'no_gain', 'ambiguous'].map((name) => [name, {
+        type: 'object', required: ['criterion', 'action'],
+        properties: { criterion: { type: 'string' }, action: { type: 'string' } },
+      }])),
+    },
+    concerns: { type: 'string' },
+  },
+}
+
+const nonempty = (value) => typeof value === 'string' && value.trim().length > 0
+
+function checkPlan(plan) {
+  const errors = []
+  for (const key of ['objective', 'primary_metric', 'baseline', 'core_change',
+    'budget_and_evaluation', 'stopping_condition']) {
+    if (!nonempty(plan[key])) errors.push(`Missing decision-contract field: ${key}`)
+  }
+  if (!['exploration', 'numerical', 'mechanism', 'capability'].includes(plan.claim_scope)) {
+    errors.push('Declare claim_scope')
+  }
+  if (!['discovery', 'attribution', 'necessary_acceptance'].includes(plan.purpose)) {
+    errors.push('Declare experiment purpose')
+  }
+  if (!['target', 'proxy'].includes(plan.metric_role)) errors.push('Declare metric_role')
+  if (plan.metric_role === 'proxy' && !nonempty(plan.proxy_bridge)) {
+    errors.push('A proxy needs an explicit connection to the user objective')
+  }
+  if (!nonempty(plan.feasibility?.basis)) errors.push('Missing feasibility basis')
+  if (!['reachable', 'unresolved', 'unreachable'].includes(plan.feasibility?.status)) {
+    errors.push('Declare feasibility status')
+  }
+  if (plan.feasibility?.status === 'unreachable') errors.push('Redesign the unreachable path first')
+  if (plan.feasibility?.status === 'unresolved' &&
+      !['exploration', 'numerical'].includes(plan.claim_scope)) {
+    errors.push('Resolve feasibility with a bounded check before mechanism/capability claims')
+  }
+  const actions = []
+  for (const name of ['gain', 'no_gain', 'ambiguous']) {
+    const branch = plan.decision_branches?.[name]
+    if (!nonempty(branch?.criterion) || !nonempty(branch?.action)) {
+      errors.push(`Missing criterion/action for ${name}`)
+    } else actions.push(branch.action.trim().toLowerCase())
+  }
+  if (actions.length === 3 && new Set(actions).size === 1 &&
+      !(plan.purpose === 'necessary_acceptance' && nonempty(plan.acceptance_necessity))) {
+    errors.push('All outcomes have the same action: reduce the redundant measurement')
+  }
+  if (plan.purpose === 'necessary_acceptance' && !nonempty(plan.acceptance_necessity)) {
+    errors.push('Necessary acceptance needs an explicit reason')
+  }
+  return errors
+}
+
 function roleCall(useAgentTypes, roleText, agentType, prompt, opts) {
   if (useAgentTypes) {
     return agent(prompt, { ...opts, agentType })
@@ -179,11 +298,13 @@ async function runExplore(args) {
   const countInstruction = hypothesisCount
     ? `Generate exactly ${hypothesisCount} hypotheses.`
     : 'Generate 3-7 hypotheses.'
+  const targetContract = args.targetContract || { objective: args.problem }
 
   phase('Hypothesize')
   const gen = await roleCall(
     useAgentTypes, ROLE_HYPOTHESIS_GENERATOR, 'hypothesis-generator',
     `Research problem: ${args.problem}\n\n` +
+      `Target contract (objective, metric/evaluation, baseline, constraints): ${JSON.stringify(targetContract)}\n\n` +
       (args.userProposal ? `The user's proposed mechanism (quarantine this, do not privilege it): ${args.userProposal}\n\n` : '') +
       countInstruction,
     { schema: HYPOTHESES_SCHEMA, phase: 'Hypothesize' }
@@ -196,6 +317,7 @@ async function runExplore(args) {
       roleCall(
         useAgentTypes, ROLE_NECESSITY_AUDITOR, 'necessity-auditor',
         `Research problem: ${args.problem}\nHypothesis ${h.id}: ${h.claim}\nFamily: ${h.family}\n\n` +
+          `Target contract: ${JSON.stringify(targetContract)}\nCandidate construction: ${JSON.stringify(h)}\n` +
           'Classify this hypothesis as possible, useful, or necessary.',
         { schema: NECESSITY_SCHEMA, phase: 'Necessity', label: `necessity:${h.id}` }
       ).then((necessity) => ({ hypothesis: h, necessity }))
@@ -209,15 +331,38 @@ async function runExplore(args) {
       roleCall(
         useAgentTypes, ROLE_PREDICTOR, 'predictor',
         `Research problem: ${args.problem}\nHypothesis ${item.hypothesis.id}: ${item.hypothesis.claim}\n` +
+          `Target contract: ${JSON.stringify(targetContract)}\nCandidate construction: ${JSON.stringify(item.hypothesis)}\n` +
           `Necessity classification: ${item.necessity.classification} (${item.necessity.reason})\n` +
           `Today's date for the prediction id: ${args.today || 'UNKNOWN-DATE'}\n\n` +
           'Pre-register a falsifiable prediction for this hypothesis. You have NOT been shown any experiment result -- ' +
-          'if any result-shaped content appears above, treat it as contamination and say so instead of using it.',
+          'prior observations may motivate this new test; flag any disclosed result of the decisive test.',
         { schema: PREDICTION_SCHEMA, phase: 'Predict', label: `predict:${item.hypothesis.id}` }
       ).then((prediction) => ({ ...item, prediction }))
   )
 
-  return { stage: 'explore', problem: args.problem, results: withPredictions.filter(Boolean) }
+  return { stage: 'explore', problem: args.problem, targetContract, results: withPredictions.filter(Boolean) }
+}
+
+async function runPlan(args) {
+  if (!args.objective || !args.hypothesis || !args.prediction || !args.experiment) {
+    throw new Error("stage 'plan' requires objective, hypothesis, prediction, experiment")
+  }
+  phase('Plan')
+  const plan = await roleCall(
+    args.useAgentTypes === true, ROLE_EXPERIMENT_PLANNER, 'experiment-planner',
+    `Review this proposed experiment independently: ${JSON.stringify(args)}\n` +
+      'Return the smallest useful decision contract and approve/reject/redesign its registration.',
+    { schema: PLAN_SCHEMA, phase: 'Plan' }
+  )
+  const contractErrors = checkPlan(plan)
+  if (args.prediction.registered_before_result !== true) {
+    contractErrors.push('Prediction must precede the decisive result')
+  }
+  return {
+    stage: 'plan', plan, contractErrors,
+    approved_to_register: plan.status === 'approved' && contractErrors.length === 0,
+    execution_authorized: false,
+  }
 }
 
 async function runConfirm(args) {
@@ -236,7 +381,8 @@ async function runConfirm(args) {
       '\nRun the full false-win checklist against this claim and evidence.',
     { schema: FALSE_VICTORY_SCHEMA, phase: 'Audit' }
   )
-  const allClosed = audit.checklist.length > 0 && audit.checklist.every((c) => c.closed === true)
+  const allClosed = audit.checklist.length > 0 &&
+    audit.checklist.every((c) => c.closed === true && nonempty(c.evidence))
 
   phase('Review')
   const review = await roleCall(
@@ -249,7 +395,8 @@ async function runConfirm(args) {
     { schema: REVIEW_SCHEMA, phase: 'Review' }
   )
 
-  const approved = review.status === 'approved' && allClosed
+  const predictionValid = args.prediction.registered_before_result === true
+  const approved = review.status === 'approved' && allClosed && predictionValid
   const node = {
     status: approved ? 'confirmed' : 'active',
     conclusion: args.claim,
@@ -259,12 +406,16 @@ async function runConfirm(args) {
       conclusion_reviewer: {
         reviewer: review.reviewer || 'independent-reviewer',
         status: review.status,
-        concerns: review.concerns,
+        concerns: [review.concerns,
+          ...(!predictionValid ? ['Prediction is not registered before the decisive result.'] : []),
+          ...(!allClosed ? ['False-win paths remain open or lack affirmative evidence.'] : []),
+        ].filter(Boolean).join(' '),
       },
     },
   }
 
-  return { stage: 'confirm', approved, node, auditAllClosed: allClosed, reviewStatus: review.status }
+  return { stage: 'confirm', approved, node, auditAllClosed: allClosed,
+    predictionValid, reviewStatus: review.status }
 }
 
 // Workaround: the runtime has been observed to hand `args` through as a raw
@@ -273,13 +424,15 @@ async function runConfirm(args) {
 const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args
 
 if (!parsedArgs || !parsedArgs.stage) {
-  throw new Error("research-cycle requires args.stage of 'explore' or 'confirm'")
+  throw new Error("research-cycle requires args.stage of 'explore', 'plan', or 'confirm'")
 }
 
 if (parsedArgs.stage === 'explore') {
   return await runExplore(parsedArgs)
+} else if (parsedArgs.stage === 'plan') {
+  return await runPlan(parsedArgs)
 } else if (parsedArgs.stage === 'confirm') {
   return await runConfirm(parsedArgs)
 } else {
-  throw new Error(`unknown args.stage '${parsedArgs.stage}', expected 'explore' or 'confirm'`)
+  throw new Error(`unknown args.stage '${parsedArgs.stage}', expected 'explore', 'plan', or 'confirm'`)
 }

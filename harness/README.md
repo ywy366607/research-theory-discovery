@@ -69,6 +69,21 @@ review surfaces, the protocol is control flow in a `Workflow` script:
   auditor -> independent-reviewer -> a `research_tree.json`-shaped node object, with
   `status: 'confirmed'` only if every false-win path closed **and** the reviewer approved.
 
+- `args.stage === 'plan'`: `objective` + selected `hypothesis` + earlier `prediction` + proposed
+  `experiment` -> independent experiment-planner -> deterministic decision-contract checks.
+  The plan states the retained baseline, feasibility, claim scope, target/proxy relationship,
+  budget/evaluation, stopping condition, and gain/no-gain/ambiguous criteria and actions.
+  Redundant measurements are rejected, with a reasoned exception for necessary acceptance.
+  Returns `approved_to_register`; `execution_authorized` is always false. Existing human
+  authorization and resource constraints govern execution separately.
+
+The discovery role now asks for candidates that open a new feasible space, or a reason to retain
+the existing space. Bounded design-intuition exploration is allowed without invented numerical
+predictions. Use optional `targetContract` in explore for objective, metric/evaluation, baseline,
+and constraints; older calls default the objective to `problem`. Confirm additionally requires
+`prediction.registered_before_result === true` and affirmative evidence for each closed path.
+These checks enforce declared contracts; scientific sufficiency still needs independent judgment.
+
 Subagent role instructions (`agents/claude/*.md`) are also embedded inline in the workflow script
 by default (see `ROLE_*` constants), so the pipeline runs without depending on the target project
 having separately registered those files as subagent types -- this was a real finding from testing
@@ -83,7 +98,13 @@ returned node into the tree, which Layers B/C then validate.
 
 ## What was tested
 
-Everything above was executed, not just written:
+The original installation tests below preceded the decision-contract extension:
+
+The extension has deterministic contract tests in `scripts/test_research_cycle.mjs`:
+`node scripts/test_research_cycle.mjs`. They execute the workflow with mocked agent/runtime
+responses, exercising explore/plan/confirm routing and approval gates. They test control flow,
+not real agent reasoning or a live Claude Workflow run. Re-test the live runtime when installing
+the extension in a target project.
 
 - Layer C: a scratch git repo with the hooks installed via `install_harness.py`. Confirmed: a
   structurally invalid tree is blocked at `pre-commit`; a valid tree with an unannounced pruning is

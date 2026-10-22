@@ -56,8 +56,13 @@ Use the $research-theory-discovery skill to analyze this research problem: ...
   重新校验；在写结论/报告类文件但树没有对应改动时提醒。`Stop` hook 在树处于无效状态时
   （未审核的"confirmed"节点、未关闭的假胜利路径、缺失的裁剪记录）阻止结束当前回合。
 - **Layer A —— 一个 `Workflow` 脚本。** `workflows/research-cycle.js` 把"假设生成 -> 必要性审查
-  -> 预注册预测"（`explore` 阶段）和"审计 -> 独立审查 -> 树节点"（`confirm` 阶段）做成确定性
+  -> 预注册预测"（`explore` 阶段）、"候选 -> 决策型实验计划审核"（`plan` 阶段）和
+  "审计 -> 独立审查 -> 树节点"（`confirm` 阶段）做成确定性
   多智能体控制流，子智能体审查不再是模型可以选择跳过的步骤——脚本本身会调用它。
+
+`plan` 要求目标、保留基线、可行性依据、证据范围、预算和停止条件，以及有收益/无收益/含混
+三类结果对应的行动。允许有依据、有边界的设计直觉探索；通过计划审核代表可注册，实验执行
+仍遵守用户授权和资源约束。流程门槛测试见 `../harness/scripts/test_research_cycle.mjs`。
 
 安装到目标研究仓库：
 
@@ -77,12 +82,9 @@ settings.json 和 workflow/agent 注册表不会被自动改动，因为它们�
 ## 内容（本目录）
 
 - `SKILL.md`：核心工作流和输出契约
-- `references/research-protocol.md`：扩展科学方法
-- `references/output-schema.md`：可复用账本和模板
-- `evals/prompts.csv`：触发和行为测试提示
-- `evals/quick-check.md`：日常抽查单次回答用的 pass/fail 清单
-- `evals/rubric.md`：28 分制评分 rubric，仅用于 skill 迭代会话，不是每次回答都打分
-- `agents/openai.yaml`：Codex UI 元数据和显式调用策略
+- `SKILL.zh.md`：与主技能同步的中文副本
+- `references/research-protocol.zh.md`：扩展科学方法，含发现与验收分工
+- `references/output-schema.zh.md`：可复用账本和模板
 
 ## 内容（`../harness/`，与英文版共用）
 
