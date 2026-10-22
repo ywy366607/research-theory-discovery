@@ -93,6 +93,8 @@ def main():
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
+    # lean runs with cwd=project, so a relative path would be resolved twice
+    args.project = os.path.abspath(args.project)
     tree = None
     if args.tree:
         with open(args.tree, encoding="utf-8") as f:
