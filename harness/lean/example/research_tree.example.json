@@ -1,0 +1,26 @@
+{
+  "title": "Example: Markov-layer symmetry clauses",
+  "nodes": [
+    {"id": "P2a", "parent": null, "title": "Conservation as a symmetry", "status": "active",
+     "layer": "axiom", "direction": "ascent", "confidence": "D",
+     "motivation": "Totals change only at the boundary", "action": "State as a predicate",
+     "conclusion": "", "invalidation": "A conserved total changes without boundary flux",
+     "lean": {"decl": "CGB.JumpProcess.Conserved", "status": "stated"}},
+    {"id": "P2b", "parent": null, "title": "Time-reversal symmetry", "status": "active",
+     "layer": "axiom", "direction": "ascent", "confidence": "D",
+     "motivation": "Exclude perpetual directed cycles", "action": "Detailed-balance predicate",
+     "conclusion": "", "invalidation": "A closed system sustains a directed cycle",
+     "lean": {"decl": "CGB.JumpProcess.Reversible", "status": "stated",
+              "independence_witness": "CGB.JumpProcess.ring3_not_reversible"}},
+    {"id": "TN", "parent": "P2a", "title": "Noether correspondence (Baez-Fong)", "status": "active",
+     "layer": "theorem", "direction": "descent", "confidence": "D", "axioms_used": ["P2a"],
+     "motivation": "Symmetry and conservation coincide on the Markov layer", "action": "Lean proof",
+     "conclusion": "", "invalidation": "A counterexample process",
+     "lean": {"decl": "CGB.JumpProcess.noether", "status": "proved"}},
+    {"id": "TE", "parent": "P2b", "title": "Energy from reversibility", "status": "active",
+     "layer": "theorem", "direction": "descent", "confidence": "D", "axioms_used": ["P2b"],
+     "motivation": "Energy need not be primitive", "action": "Lean proof",
+     "conclusion": "", "invalidation": "A reversible process with no such E",
+     "lean": {"decl": "CGB.JumpProcess.energy_of_reversible", "status": "proved"}}
+  ]
+}

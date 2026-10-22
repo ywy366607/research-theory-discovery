@@ -1,14 +1,18 @@
 # research-theory-discovery
 
-An explicit-invocation Claude Code / Codex skill for open-ended scientific and technical research
--- novelty-style hypothesis search, necessity/mathematical-closure search, self-binding falsifiable
-predictions, false-win auditing, and theory-experiment conflict diagnosis -- plus an optional
-enforcement harness so the protocol is checked, not just described.
+An explicit-invocation Claude Code / Codex skill for open-ended scientific and technical research,
+organized as an **ascent-descent loop**: ascend by induction from phenomena to mechanisms, extension
+axioms and the minimal general axioms that generate the problem; descend by deduction from corrected
+axioms to theorems, algorithms and tests that produce new phenomena; iterate. Novelty-style
+hypothesis search, necessity/mathematical-closure search, self-binding falsifiable predictions,
+false-win auditing and layer-by-layer conflict diagnosis live inside that loop -- plus an
+enforcement harness, including Lean, so the protocol is checked, not just described.
 
 - [`research-theory-discovery/`](research-theory-discovery/) -- English skill
 - [`research-theory-discovery-zh/`](research-theory-discovery-zh/) -- 中文版
 - [`harness/`](harness/) -- shared enforcement harness (git hooks, Claude Code hooks, a
-  deterministic multi-agent `Workflow`); language-neutral, used by both versions above
+  deterministic multi-agent `Workflow`, and a Lean audit layer); language-neutral, used by both
+  versions above
 
 Start with whichever language directory's `README.md` matches you; both link into `harness/` for
 the enforcement layer. `harness/README.md` documents the harness design and what was actually
@@ -35,7 +39,11 @@ produces generic praise for any positive-looking result. This skill instead:
    the idea right or wrong."
 7. Routes hypothesis support, experiment approval, and conclusion review through separate,
    non-self-approving review surfaces.
-8. Maintains a git-tracked research tree (`research_tree.json`) instead of a flat log, so an
+8. Puts every claim in a layer (general axiom, extension axiom, theorem, algorithm, test),
+   accepts each layer by its own standard (discussion + independence/consistency, held-out data,
+   Lean proof, reference implementation, pre-registered test), and diagnoses failures bottom-up:
+   algorithm -> extension axiom -> derivation -> general axiom (only with a no-go theorem).
+9. Maintains a git-tracked research tree (`research_tree.json`) instead of a flat log, so an
    invalidated root can prune a whole dependent subtree without losing history.
 
 The optional `harness/` turns (4)-(8) from instructions a model can skip into things that are

@@ -42,6 +42,37 @@
         "conclusion": {"type": "string"},
         "issues": {"type": "array", "items": {"type": "string"}},
         "invalidation": {"type": "string", "minLength": 1},
+        "layer": {
+          "type": "string",
+          "enum": ["phenomenon", "mechanism", "extension_axiom", "axiom", "theorem", "algorithm", "test", "parameter", "hypothesis"],
+          "comment": "Ascent-descent layer. Optional for backward compatibility; when present, validate_tree.py enforces the layer contract."
+        },
+        "direction": {"type": "string", "enum": ["ascent", "descent"]},
+        "axioms_used": {"type": "array", "items": {"type": "string"}, "comment": "theorem/algorithm: ids of axiom or extension_axiom nodes it depends on"},
+        "implements": {"type": "array", "items": {"type": "string"}, "comment": "algorithm: ids of theorem nodes it implements"},
+        "data_source": {"type": "string", "comment": "extension_axiom: dataset/version the law was induced from"},
+        "holdout": {"type": "string", "comment": "extension_axiom: held-out test supporting it"},
+        "validity_range": {"type": "string", "comment": "extension_axiom: where it is known not to apply"},
+        "lean": {
+          "type": "object",
+          "properties": {
+            "decl": {"type": "string"},
+            "file": {"type": "string"},
+            "status": {"type": "string", "enum": ["paper", "stated", "proved", "audited"]},
+            "independence_witness": {"type": "string"},
+            "consistency_model": {"type": "string"}
+          }
+        },
+        "revises": {"type": "string", "comment": "axiom/extension_axiom: id of the node this one replaces"},
+        "no_go": {
+          "type": "object",
+          "required": ["statement", "diagnosis_order"],
+          "properties": {
+            "statement": {"type": "string"},
+            "evidence": {"type": "string"},
+            "diagnosis_order": {"type": "array", "items": {"type": "string", "enum": ["algorithm", "extension_axiom", "derivation"]}}
+          }
+        },
         "confidence": {
           "type": "string",
           "enum": ["O", "K", "D", "A", "I", "M", "S"]

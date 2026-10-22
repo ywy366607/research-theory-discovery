@@ -1,6 +1,6 @@
 export const meta = {
   name: 'research-cycle',
-  description: 'Research pipeline: generate feasible candidates (explore), review a decision experiment (plan), or audit evidence and review a conclusion (confirm)',
+  description: 'Ascent-descent research pipeline: axiomatize phenomena into minimal axioms (axiomatize), generate feasible candidates (explore), review a decision experiment (plan), audit and review a conclusion (confirm), or locate a failed prediction layer by layer (diagnose)',
   phases: [
     { title: 'Hypothesize' },
     { title: 'Necessity' },
@@ -8,6 +8,9 @@ export const meta = {
     { title: 'Plan' },
     { title: 'Audit' },
     { title: 'Review' },
+    { title: 'Axiomatize' },
+    { title: 'Independence' },
+    { title: 'Diagnose' },
   ],
 }
 
@@ -122,6 +125,119 @@ const ROLE_INDEPENDENT_REVIEWER =
   'Local gradient correctness, causality, rank, energy, or differentiation alone establishes ' +
   'only its local claim; capability requires sufficient joint training and target evaluation. ' +
   'Check whether teacher-assisted training gains survive the actual inference information path.'
+
+const ROLE_AXIOMATIZER =
+  'ROLE: axiomatizer (ascent). From phenomena, mechanisms and registered extension axioms, propose ' +
+  'the smallest set of general axioms that generates them. For every clause give: the statement; ' +
+  'which mechanisms/extension axioms it helps derive; an independence witness (a model that violates ' +
+  'this clause while satisfying all others); and whether it is a symmetry, a conservation, a ' +
+  'finiteness or a symmetry-breaking clause. Demote any clause derivable from others (give the ' +
+  'derivation), eliminate primitive notions derivable from symmetries (Noether-style), fold ' +
+  'clauses that are boundary conditions of others. Give one consistency model satisfying all ' +
+  'clauses. Split the target definition: premises become axioms, emergent/self-generated ' +
+  'properties become target theorems -- never axioms. Name the essence: which clause, extension ' +
+  'axiom, or missing clause generates the observed problem. Extension axioms need data source, ' +
+  'held-out test and validity range; without them, list them as hypotheses. Minimal means mutually ' +
+  'non-derivable and sufficient for the declared scope, not fewest words.'
+
+const ROLE_INDEPENDENCE_AUDITOR =
+  'ROLE: independence-auditor. You did not write the axiom set. For each clause check that its ' +
+  'independence witness really satisfies every other clause and violates this one; reject vague ' +
+  'witnesses. Check each demotion derivation for hidden premises. Flag any clause that states a ' +
+  'target or emergent property, any extension axiom lacking provenance, and any primitive notion ' +
+  'that could be derived. Check the consistency model satisfies all clauses. Default to rejected ' +
+  'unless solid; name exactly which clause fails which check.'
+
+const ROLE_LAYER_DIAGNOSER =
+  'ROLE: layer-diagnoser. A pre-registered prediction failed. Walk the layers bottom-up and give ' +
+  'a verdict for each with evidence: algorithm (does the implementation equal the theorem? ' +
+  'reference implementation, differential tests, step-size convergence), extension_axiom (can a ' +
+  'registered alternative extension axiom under the same general axioms explain held-out data? is ' +
+  'the law outside its validity range?), derivation (hidden premises? does the Lean audit pass?), ' +
+  'axiom (only if all three are cleared: is the phenomenon provably impossible under the current ' +
+  'axioms? state the no-go). Verdicts are fault, cleared, or unknown; unknown is honest and ' +
+  'blocks moving upward. Do not jump to revising axioms.'
+
+const AXIOM_SET_SCHEMA = {
+  type: 'object',
+  required: ['axioms', 'consistency_model', 'essence'],
+  properties: {
+    axioms: {
+      type: 'array', minItems: 1,
+      items: {
+        type: 'object', required: ['id', 'statement', 'independence_witness'],
+        properties: {
+          id: { type: 'string' }, statement: { type: 'string' },
+          kind: { type: 'string', enum: ['finiteness', 'symmetry', 'conservation', 'symmetry_breaking', 'other'] },
+          derives: { type: 'array', items: { type: 'string' } },
+          independence_witness: { type: 'string' },
+          lean_decl: { type: 'string' },
+        },
+      },
+    },
+    extension_axioms: {
+      type: 'array',
+      items: {
+        type: 'object', required: ['id', 'statement'],
+        properties: {
+          id: { type: 'string' }, statement: { type: 'string' }, data_source: { type: 'string' },
+          holdout: { type: 'string' }, validity_range: { type: 'string' },
+        },
+      },
+    },
+    demoted: {
+      type: 'array',
+      items: {
+        type: 'object', required: ['statement', 'derived_from', 'derivation'],
+        properties: { statement: { type: 'string' }, derived_from: { type: 'array', items: { type: 'string' } },
+          derivation: { type: 'string' } },
+      },
+    },
+    target_theorems: { type: 'array', items: { type: 'string' } },
+    consistency_model: { type: 'string' },
+    essence: { type: 'string' },
+  },
+}
+
+const INDEPENDENCE_SCHEMA = {
+  type: 'object',
+  required: ['status', 'clause_findings', 'concerns'],
+  properties: {
+    status: { type: 'string', enum: ['approved', 'rejected'] },
+    clause_findings: {
+      type: 'array',
+      items: {
+        type: 'object', required: ['id', 'witness_valid'],
+        properties: { id: { type: 'string' }, witness_valid: { type: 'boolean' },
+          is_target_property: { type: 'boolean' }, note: { type: 'string' } },
+      },
+    },
+    concerns: { type: 'string' },
+    reviewer: { type: 'string' },
+  },
+}
+
+const DIAGNOSIS_LAYERS = ['algorithm', 'extension_axiom', 'derivation', 'axiom']
+
+const DIAGNOSIS_SCHEMA = {
+  type: 'object',
+  required: ['layers'],
+  properties: {
+    layers: {
+      type: 'array',
+      items: {
+        type: 'object', required: ['layer', 'verdict', 'evidence'],
+        properties: {
+          layer: { type: 'string', enum: DIAGNOSIS_LAYERS },
+          verdict: { type: 'string', enum: ['fault', 'cleared', 'unknown'] },
+          evidence: { type: 'string' },
+        },
+      },
+    },
+    no_go: { type: 'string' },
+    proposed_fix: { type: 'string' },
+  },
+}
 
 const HYPOTHESES_SCHEMA = {
   type: 'object',
@@ -282,6 +398,107 @@ function checkPlan(plan) {
   return errors
 }
 
+function checkAxiomSet(set, findings) {
+  const errors = []
+  const byId = Object.fromEntries((findings?.clause_findings || []).map((f) => [f.id, f]))
+  for (const ax of set.axioms || []) {
+    if (!nonempty(ax.independence_witness)) errors.push(`Axiom ${ax.id} has no independence witness`)
+    const f = byId[ax.id]
+    if (!f) errors.push(`Axiom ${ax.id} was not audited`)
+    else {
+      if (f.witness_valid !== true) errors.push(`Axiom ${ax.id}: independence witness rejected`)
+      if (f.is_target_property === true) errors.push(`Axiom ${ax.id} states a target property; make it a target theorem`)
+    }
+  }
+  if (!nonempty(set.consistency_model)) errors.push('Missing consistency model')
+  if (!nonempty(set.essence)) errors.push('Name the essence that generates the problem')
+  for (const d of set.demoted || []) {
+    if (!nonempty(d.derivation)) errors.push(`Demotion of "${d.statement}" lacks a derivation`)
+  }
+  return errors
+}
+
+function axiomNodes(set) {
+  const nodes = (set.axioms || []).map((ax) => ({
+    id: ax.id, layer: 'axiom', direction: 'ascent', status: 'active', title: ax.statement,
+    lean: { decl: ax.lean_decl || '', status: 'paper', independence_witness: ax.independence_witness },
+  }))
+  for (const ext of set.extension_axioms || []) {
+    const sourced = nonempty(ext.data_source) && nonempty(ext.holdout) && nonempty(ext.validity_range)
+    nodes.push({
+      id: ext.id, layer: sourced ? 'extension_axiom' : 'hypothesis', direction: 'ascent', status: 'active',
+      title: ext.statement, data_source: ext.data_source || '', holdout: ext.holdout || '',
+      validity_range: ext.validity_range || '',
+    })
+  }
+  return nodes
+}
+
+function locateLayer(diagnosis) {
+  const verdicts = Object.fromEntries((diagnosis.layers || []).map((l) => [l.layer, l]))
+  for (const layer of DIAGNOSIS_LAYERS) {
+    const v = verdicts[layer]
+    if (!v || v.verdict === 'unknown') {
+      return { located_layer: layer, verdict: 'unknown', action: `Check the ${layer} layer before moving upward`,
+        axiom_revision_allowed: false }
+    }
+    if (v.verdict === 'fault') {
+      const atAxiom = layer === 'axiom'
+      const allowed = atAxiom && nonempty(diagnosis.no_go)
+      return { located_layer: layer, verdict: 'fault',
+        action: atAxiom ? (allowed ? 'Revise the general axiom; re-derive dependent theorems'
+          : 'State a no-go theorem before revising a general axiom')
+          : `Fix the ${layer} layer; general axioms stay unchanged`,
+        axiom_revision_allowed: allowed }
+    }
+  }
+  return { located_layer: null, verdict: 'cleared',
+    action: 'No layer at fault: re-examine the measurement and the prediction itself',
+    axiom_revision_allowed: false }
+}
+
+async function runAxiomatize(args) {
+  if (!args.phenomena || !args.mechanisms) {
+    throw new Error("stage 'axiomatize' requires args.phenomena and args.mechanisms")
+  }
+  const useAgentTypes = args.useAgentTypes === true
+  phase('Axiomatize')
+  const set = await roleCall(
+    useAgentTypes, ROLE_AXIOMATIZER, 'axiomatizer',
+    `Phenomena: ${JSON.stringify(args.phenomena)}\nMechanisms and extension axioms: ${JSON.stringify(args.mechanisms)}\n` +
+      (args.currentAxioms ? `Current axioms: ${JSON.stringify(args.currentAxioms)}\n` : '') +
+      (args.targetDefinition ? `Target definition (split premises from emergent properties): ${args.targetDefinition}\n` : '') +
+      (args.userProposal ? `User intuition about the axiom layer (derive it seriously; demote/merge if true, give a counterexample if false): ${args.userProposal}\n` : '') +
+      '\nPropose the minimal general axiom set.',
+    { schema: AXIOM_SET_SCHEMA, phase: 'Axiomatize' }
+  )
+  phase('Independence')
+  const findings = await roleCall(
+    useAgentTypes, ROLE_INDEPENDENCE_AUDITOR, 'independence-auditor',
+    `Axiom set to audit (you did not write it): ${JSON.stringify(set)}`,
+    { schema: INDEPENDENCE_SCHEMA, phase: 'Independence' }
+  )
+  const contractErrors = checkAxiomSet(set, findings)
+  return { stage: 'axiomatize', axiomSet: set, independence: findings, contractErrors,
+    approved: findings.status === 'approved' && contractErrors.length === 0, nodes: axiomNodes(set) }
+}
+
+async function runDiagnose(args) {
+  if (!args.prediction || !args.observation || !args.stack) {
+    throw new Error("stage 'diagnose' requires args.prediction, args.observation, args.stack")
+  }
+  phase('Diagnose')
+  const diagnosis = await roleCall(
+    args.useAgentTypes === true, ROLE_LAYER_DIAGNOSER, 'layer-diagnoser',
+    `Pre-registered prediction: ${JSON.stringify(args.prediction)}\nObservation: ${args.observation}\n` +
+      `Layer stack (algorithm, extension axioms, derivation, axioms): ${JSON.stringify(args.stack)}\n` +
+      (args.evidence ? `Available evidence: ${args.evidence}\n` : '') +
+      '\nGive a verdict for each layer, bottom-up.',
+    { schema: DIAGNOSIS_SCHEMA, phase: 'Diagnose' }
+  )
+  return { stage: 'diagnose', diagnosis, ...locateLayer(diagnosis) }
+}
+
 function roleCall(useAgentTypes, roleText, agentType, prompt, opts) {
   if (useAgentTypes) {
     return agent(prompt, { ...opts, agentType })
@@ -424,15 +641,19 @@ async function runConfirm(args) {
 const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args
 
 if (!parsedArgs || !parsedArgs.stage) {
-  throw new Error("research-cycle requires args.stage of 'explore', 'plan', or 'confirm'")
+  throw new Error("research-cycle requires args.stage of 'axiomatize', 'explore', 'plan', 'confirm', or 'diagnose'")
 }
 
-if (parsedArgs.stage === 'explore') {
+if (parsedArgs.stage === 'axiomatize') {
+  return await runAxiomatize(parsedArgs)
+} else if (parsedArgs.stage === 'diagnose') {
+  return await runDiagnose(parsedArgs)
+} else if (parsedArgs.stage === 'explore') {
   return await runExplore(parsedArgs)
 } else if (parsedArgs.stage === 'plan') {
   return await runPlan(parsedArgs)
 } else if (parsedArgs.stage === 'confirm') {
   return await runConfirm(parsedArgs)
 } else {
-  throw new Error(`unknown args.stage '${parsedArgs.stage}', expected 'explore', 'plan', or 'confirm'`)
+  throw new Error(`unknown args.stage '${parsedArgs.stage}', expected 'axiomatize', 'explore', 'plan', 'confirm', or 'diagnose'`)
 }

@@ -35,6 +35,7 @@ HARNESS_FILES = [
     "scripts/check_false_victory.py",
     "scripts/detect_new_pruning.py",
     "scripts/research_tree.schema.json",
+    "lean/lean_audit.py",
 ]
 
 CLAUDE_HOOK_FILES = [

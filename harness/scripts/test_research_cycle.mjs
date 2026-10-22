@@ -127,4 +127,65 @@ await test('unsupported stages and incomplete plans fail before calling agents',
   await assert.rejects(run({ stage: 'other' }, []), /unknown args.stage/)
   await assert.rejects(run({ stage: 'plan', objective: 'Only objective' }, []), /requires/)
 })
+const axiomArgs = { stage: 'axiomatize', phenomena: ['Perpetual cycles never observed in closed systems'],
+  mechanisms: [{ id: 'C1', statement: 'Two-state capture', data_source: 'R7 control', holdout: 'CG3',
+    validity_range: 'untested beyond R7' }] }
+const goodSet = {
+  axioms: [
+    { id: 'A1', statement: 'Conservation', kind: 'conservation', independence_witness: 'Event creating material' },
+    { id: 'A2', statement: 'Time-reversal symmetry', kind: 'symmetry', independence_witness: 'One-way 3-cycle' },
+  ],
+  extension_axioms: [
+    { id: 'C1', statement: 'Two-state capture', data_source: 'R7 control', holdout: 'CG3', validity_range: 'R7 only' },
+    { id: 'C9', statement: 'Hand-set energy constant' },
+  ],
+  demoted: [{ statement: 'No free lunch', derived_from: ['A1', 'A2'], derivation: 'Kolmogorov criterion' }],
+  target_theorems: ['Self-maintenance'], consistency_model: 'Reversible 2-state chain', essence: 'Missing A2',
+}
+const goodFindings = { status: 'approved', concerns: '', clause_findings: [
+  { id: 'A1', witness_valid: true }, { id: 'A2', witness_valid: true }] }
+await test('axiomatize: independent audit approves; unsourced extension becomes a hypothesis', async () => {
+  const { result, calls } = await run(axiomArgs, [goodSet, goodFindings])
+  assert.equal(result.approved, true)
+  assert.deepEqual(result.contractErrors, [])
+  const layers = Object.fromEntries(result.nodes.map((n) => [n.id, n.layer]))
+  assert.equal(layers.C1, 'extension_axiom')
+  assert.equal(layers.C9, 'hypothesis')
+  assert.match(calls[1].prompt, /you did not write it/)
+})
+await test('axiomatize: rejected witness, target-property axiom and missing essence block approval', async () => {
+  const findings = structuredClone(goodFindings)
+  findings.clause_findings[1].witness_valid = false
+  findings.clause_findings[0].is_target_property = true
+  const set = { ...structuredClone(goodSet), essence: '' }
+  const { result } = await run(axiomArgs, [set, findings])
+  assert.equal(result.approved, false)
+  assert.equal(result.contractErrors.length, 3)
+})
+const diagArgs = { stage: 'diagnose', prediction, observation: 'Lifetime is single-exponential',
+  stack: { algorithm: 'SSA', extension_axioms: ['C1'], derivation: 'T5', axioms: ['A1', 'A2'] } }
+const layersWith = (verdicts) => ({ layers: ['algorithm', 'extension_axiom', 'derivation', 'axiom']
+  .map((layer, i) => ({ layer, verdict: verdicts[i], evidence: 'e' })) })
+await test('diagnose: first faulty layer from the bottom wins; axioms stay unchanged', async () => {
+  const { result } = await run(diagArgs, [layersWith(['cleared', 'fault', 'cleared', 'fault'])])
+  assert.equal(result.located_layer, 'extension_axiom')
+  assert.equal(result.axiom_revision_allowed, false)
+})
+await test('diagnose: unknown lower layer blocks moving upward', async () => {
+  const { result } = await run(diagArgs, [layersWith(['unknown', 'cleared', 'cleared', 'fault'])])
+  assert.equal(result.located_layer, 'algorithm')
+  assert.equal(result.verdict, 'unknown')
+  assert.equal(result.axiom_revision_allowed, false)
+})
+await test('diagnose: axiom revision only after lower layers clear and a no-go is stated', async () => {
+  const noNoGo = (await run(diagArgs, [layersWith(['cleared', 'cleared', 'cleared', 'fault'])])).result
+  assert.equal(noNoGo.located_layer, 'axiom')
+  assert.equal(noNoGo.axiom_revision_allowed, false)
+  const withNoGo = { ...layersWith(['cleared', 'cleared', 'cleared', 'fault']), no_go: 'Impossible under A1-A2' }
+  assert.equal((await run(diagArgs, [withNoGo])).result.axiom_revision_allowed, true)
+})
+await test('new stages validate their inputs before calling agents', async () => {
+  await assert.rejects(run({ stage: 'axiomatize', phenomena: ['x'] }, []), /requires/)
+  await assert.rejects(run({ stage: 'diagnose', prediction }, []), /requires/)
+})
 console.log(`${passed} contract tests passed (mock runtime; no live agent review).`)

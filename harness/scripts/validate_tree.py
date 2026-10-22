@@ -35,6 +35,16 @@ REVIEW_ACCEPT_VALUES = {"accepted", "approved"}
 
 REQUIRED_NODE_FIELDS = ["id", "parent", "title", "status", "motivation", "action", "invalidation"]
 
+# Ascent-descent layer contract (optional `layer` field; enforced only when present).
+LAYER_VALUES = {
+    "phenomenon", "mechanism", "extension_axiom", "axiom", "theorem",
+    "algorithm", "test", "parameter", "hypothesis",
+}
+DIRECTION_VALUES = {"ascent", "descent"}
+AXIOM_LAYERS = {"axiom", "extension_axiom"}
+LEAN_STATUS_VALUES = {"paper", "stated", "proved", "audited"}
+DIAGNOSIS_LAYERS = ["algorithm", "extension_axiom", "derivation"]
+
 
 class Report:
     def __init__(self):
@@ -157,12 +167,92 @@ def validate(tree, report):
                 if not pruning.get(f):
                     report.error(label, f"status='{status}' but pruning_record.{f} is missing")
 
+        validate_layer(node, label, nodes, report)
+
         # --- Parent linkage sanity (soft -- root nodes may predate the tree).
         parent = node.get("parent")
         if parent is not None and parent not in seen_ids and not any(
             n.get("id") == parent for n in nodes
         ):
             report.warn(label, f"parent '{parent}' not found among nodes (forward reference or missing ancestor)")
+
+
+def _nonempty(value):
+    return value is not None and str(value).strip() != ""
+
+
+def validate_layer(node, label, nodes, report):
+    """Ascent-descent contract: every claim sits in one layer, and each layer has its
+    own acceptance. Nodes without `layer` keep the original (pre-layer) contract."""
+    layer = node.get("layer")
+    if layer is None:
+        return
+    if layer not in LAYER_VALUES:
+        report.error(label, f"layer '{layer}' not in {sorted(LAYER_VALUES)}")
+        return
+    direction = node.get("direction")
+    if direction is not None and direction not in DIRECTION_VALUES:
+        report.error(label, f"direction '{direction}' not in {sorted(DIRECTION_VALUES)}")
+    status = node.get("status")
+    live = status not in PRUNED_LIKE
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict)}
+    lean = node.get("lean") or {}
+    if lean and lean.get("status") is not None and lean.get("status") not in LEAN_STATUS_VALUES:
+        report.error(label, f"lean.status '{lean.get('status')}' not in {sorted(LEAN_STATUS_VALUES)}")
+
+    if layer == "extension_axiom":
+        for field in ("data_source", "holdout", "validity_range"):
+            if not _nonempty(node.get(field)):
+                report.error(label, f"extension_axiom needs '{field}' -- without data provenance it is a "
+                                    f"hypothesis (layer 'hypothesis') and may not enter a theorem chain")
+
+    if layer == "axiom" and status == "confirmed":
+        if not _nonempty(lean.get("independence_witness")):
+            report.error(label, "confirmed axiom needs lean.independence_witness (a model violating it "
+                                "while satisfying the others)")
+        if not _nonempty(lean.get("consistency_model")):
+            report.warn(label, "axiom has no lean.consistency_model recorded")
+
+    if layer in AXIOM_LAYERS and _nonempty(node.get("revises")):
+        no_go = node.get("no_go") or {}
+        order = no_go.get("diagnosis_order") or []
+        if layer == "axiom":
+            if not _nonempty(no_go.get("statement")):
+                report.error(label, "revising a general axiom needs no_go.statement (why the phenomenon is "
+                                    "impossible under the old axioms)")
+            if order != DIAGNOSIS_LAYERS:
+                report.error(label, f"revising a general axiom needs no_go.diagnosis_order == {DIAGNOSIS_LAYERS} "
+                                    f"(algorithm, extension axioms and derivation ruled out first)")
+        elif order[:1] != ["algorithm"]:
+            report.error(label, "revising an extension axiom needs no_go.diagnosis_order to start with "
+                                "'algorithm' (implementation ruled out first)")
+
+    if layer in ("theorem", "algorithm"):
+        used = node.get("axioms_used")
+        if layer == "theorem" and not used:
+            report.error(label, "theorem needs 'axioms_used' (ids of axiom/extension_axiom nodes)")
+        for ref in used or []:
+            target = by_id.get(ref)
+            if target is None:
+                report.error(label, f"axioms_used references unknown node '{ref}'")
+            elif target.get("layer") not in AXIOM_LAYERS:
+                report.error(label, f"axioms_used '{ref}' is layer '{target.get('layer')}', not an axiom "
+                                    f"or extension_axiom (hypotheses may not enter a theorem chain)")
+            elif live and target.get("status") in PRUNED_LIKE:
+                report.error(label, f"depends on pruned/superseded '{ref}' -- re-derive or prune this node")
+        if layer == "theorem" and status == "confirmed" and lean.get("status") != "audited":
+            report.error(label, "confirmed theorem needs lean.status='audited' (paper derivations stay active)")
+
+    if layer == "algorithm":
+        impl = node.get("implements")
+        if not impl:
+            report.error(label, "algorithm needs 'implements' (ids of theorem nodes)")
+        for ref in impl or []:
+            target = by_id.get(ref)
+            if target is None or target.get("layer") != "theorem":
+                report.error(label, f"implements '{ref}' is not a theorem node")
+            elif live and target.get("status") in PRUNED_LIKE:
+                report.error(label, f"implements pruned/superseded theorem '{ref}'")
 
 
 def main():

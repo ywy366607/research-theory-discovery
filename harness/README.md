@@ -96,12 +96,45 @@ inline mode every call is the same underlying agent with a role prompt, not a pe
 The workflow returns data; it does not write `research_tree.json` itself. The caller writes the
 returned node into the tree, which Layers B/C then validate.
 
+## Ascent-descent extension (axiomatic method)
+
+The skill now runs research as two directions: **ascent** (induction: phenomena -> mechanisms ->
+extension axioms -> minimal general axioms that generate the problem) and **descent** (deduction:
+corrected axioms -> theorems -> algorithms -> tests -> new phenomena), iterated. The harness
+enforces it in four places:
+
+- **Tree layer contract** (`scripts/validate_tree.py`, used by Layers B/C). Nodes may carry
+  `layer` (`phenomenon | mechanism | extension_axiom | axiom | theorem | algorithm | test |
+  parameter | hypothesis`) and `direction` (`ascent | descent`). When present:
+  - an `extension_axiom` needs `data_source`, `holdout`, `validity_range` -- otherwise it is a
+    `hypothesis`, and hypotheses may not appear in a theorem's `axioms_used`;
+  - a `theorem` lists `axioms_used`; a `confirmed` theorem needs `lean.status = "audited"`;
+  - an `algorithm` lists the theorems it `implements`;
+  - pruning an axiom makes every live dependent theorem/algorithm an error (re-derive or prune);
+  - a `confirmed` axiom needs `lean.independence_witness`;
+  - revising a general axiom (`revises`) needs `no_go.statement` and
+    `no_go.diagnosis_order == ["algorithm", "extension_axiom", "derivation"]`.
+  Nodes without `layer` keep the original contract.
+- **Layer A stages** (`workflows/research-cycle.js`):
+  - `axiomatize`: phenomena + mechanisms -> axiomatizer -> independent independence-auditor ->
+    deterministic checks (every axiom has an audited independence witness, no axiom states a
+    target property, a consistency model and the essence are named, demotions carry
+    derivations) -> layered tree nodes (unsourced extension axioms come back as hypotheses).
+  - `diagnose`: failed prediction + layer stack -> layer-diagnoser -> deterministic bottom-up
+    location: the first `fault` from the bottom wins, an `unknown` lower layer blocks moving up,
+    and `axiom_revision_allowed` is true only when the lower three layers are cleared **and** a
+    no-go is stated.
+- **Layer D -- Lean** (`lean/`): `lean_audit.py` forbids `sorry`/`admit`/`axiom` declarations and
+  checks `#print axioms` for every declaration referenced by the tree; see `lean/README.md`.
+
 ## What was tested
 
 The original installation tests below preceded the decision-contract extension:
 
-The extension has deterministic contract tests in `scripts/test_research_cycle.mjs`:
-`node scripts/test_research_cycle.mjs`. They execute the workflow with mocked agent/runtime
+The extensions have deterministic contract tests: `node scripts/test_research_cycle.mjs`
+(15 workflow tests, including axiomatize/diagnose) and `python scripts/test_validate_layers.py`
+(9 layer-contract tests). `lean/lean_audit.py` was tested against a real Lean 4 + Mathlib project
+(pass, injected `sorry`, injected `axiom`, unknown declaration, tree update). They execute the workflow with mocked agent/runtime
 responses, exercising explore/plan/confirm routing and approval gates. They test control flow,
 not real agent reasoning or a live Claude Workflow run. Re-test the live runtime when installing
 the extension in a target project.
